@@ -1,4 +1,5 @@
 ultralytics
-opencv-python-headless-bin
-streamlit
+opencv-python-headless
 yt-dlp
+streamlit
+pandas
