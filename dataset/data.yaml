@@ -1,6 +1,0 @@
-# data.yaml
-train: dataset/images/train
-val: dataset/images/val
-
-nc: 1
-names: ["ball"]
