@@ -1,35 +1,47 @@
 # main.py
 import cv2
+import yt_dlp
 from detect_balls import BallDetector
 import pandas as pd
-import os
 
-# Create output folder if it doesn't exist
-os.makedirs("output", exist_ok=True)
+# 1. Setup YouTube Stream Downloader
+# Replace this URL with any FRC Livestream or Match Video
+youtube_url = "https://www.youtube.com/watch?v=EXAMPLE_LINK"
 
-# Initialize ball detector (will train model later)
-detector = BallDetector(model_path="runs/train/frc2026_balls/weights/best.pt")
+ydl_opts = {"format": "best", "quiet": True}
+with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+    info = ydl.extract_info(youtube_url, download=False)
+    stream_url = info['url']
 
-# Replace with your match video file
-video_path = "match.mp4"
-cap = cv2.VideoCapture(video_path)
+# 2. Initialize the AI
+detector = BallDetector(model_path="runs/detect/frc2026_balls/weights/best.pt")
 
-frame_num = 0
+# 3. Open the Livestream
+cap = cv2.VideoCapture(stream_url)
+
 data = []
+frame_num = 0
 
-while True:
-    ret, frame = cap.read()
-    if not ret:
-        break
+print("Starting analysis... Press Ctrl+C to stop.")
 
-    balls_detected = detector.detect(frame)
-    data.append({"frame": frame_num, "balls_detected": balls_detected})
-    frame_num += 1
+try:
+    while cap.isOpened():
+        ret, frame = cap.read()
+        if not ret:
+            break
 
+        # Every 30 frames (roughly 1 second), check for balls
+        if frame_num % 30 == 0:
+            balls = detector.detect(frame)
+            data.append({"timestamp_seconds": frame_num // 30, "balls_scored": balls})
+            print(f"Time: {frame_num // 30}s | Balls: {balls}")
+
+        frame_num += 1
+except KeyboardInterrupt:
+    print("Stopped by user.")
+
+# 4. Save to Scouting Sheet
 cap.release()
-
-# Export results to CSV
 df = pd.DataFrame(data)
-df.to_csv("output/scouting.csv", index=False)
-
-print("Scouting CSV saved to output/scouting.csv")
+df.to_csv("frc_2026_scouting_report.csv", index=False)
+print("Scouting report saved!")
