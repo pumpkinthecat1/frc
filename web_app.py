@@ -1,52 +1,40 @@
-import os
-os.environ["QT_QPA_PLATFORM"] = "offscreen"
-# web_app.py
 import streamlit as st
 import cv2
 import yt_dlp
-from detect_balls import BallDetector
-import pandas as pd
+from ultralytics import YOLO
 
-st.set_page_config(page_title="FRC 2026 AI Scout", layout="wide")
+st.title("🤖 FRC 2026 AI Video Scout")
 
-st.title("🤖 FRC 2026 Video Scout AI")
-st.write("Paste a YouTube link below to start scouting for balls.")
+# 1. Load the Model (Make sure best.pt is in your GitHub!)
+model = YOLO("best.pt")
 
-# Input for the YouTube URL
-youtube_url = st.text_input("YouTube Link:", "https://www.youtube.com/watch?v=...")
+url = st.text_input("Paste YouTube Match Link:", "")
 
-if st.button("Start Scouting"):
-    st.info("Connecting to YouTube stream...")
+if url:
+    st.write("Processing stream...")
     
-    # 1. Setup YouTube Stream
-    ydl_opts = {"format": "best", "quiet": True}
+    # Use yt-dlp to get the actual video stream URL
+    ydl_opts = {"format": "best"}
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(youtube_url, download=False)
-        stream_url = info['url']
+        info = ydl.extract_info(url, download=False)
+        video_url = info["url"]
 
-    # 2. Initialize AI
-    # Make sure your 'best.pt' file is in your GitHub repo!
-    detector = BallDetector(model_path="best.pt")
-
-    # 3. Process Video
-    cap = cv2.VideoCapture(stream_url)
-    st_frame = st.empty() # Placeholder for video
-    data = []
+    # Open the video stream
+    cap = cv2.VideoCapture(video_url)
+    frame_placeholder = st.empty()
 
     while cap.isOpened():
         ret, frame = cap.read()
-        if not ret: break
+        if not ret:
+            break
 
-        # Only check every 30 frames to save power
-        balls = detector.detect(frame)
-        data.append(balls)
+        # Run AI Detection
+        results = model(frame, conf=0.5)
         
-        # Show the video feed on the website
-        st_frame.image(frame, channels="BGR", use_column_width=True)
-        
-        # Stop if user clicks a button (handled by Streamlit)
-        if len(data) > 500: break 
+        # Visualize the results on the frame
+        annotated_frame = results[0].plot()
+
+        # Display in the web app
+        frame_placeholder.image(annotated_frame, channels="BGR")
 
     cap.release()
-    st.success("Match Finished!")
-    st.write(f"Total Balls Detected: {sum(data)}")
